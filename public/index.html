@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        p { line-height: 1.6; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Our Website</h1>
+        <p>This is a test page to demonstrate the AI chatbot integration. The chat widget should appear in the bottom-right corner.</p>
+        <p>Try asking questions about our products, pricing, or support. You can also request to speak with a human agent.</p>
+    </div>
+
+    <!-- Chat Widget Configuration -->
+    <script>
+        window.chatWidgetConfig = {
+            serverUrl: 'ws://localhost:3000',
+            position: 'bottom-right',
+            primaryColor: '#007bff',
+            title: 'Support Chat'
+        };
+    </script>
+    
+    <!-- Load Chat Widget -->
+    <script src="chat-widget.js"></script>
+</body>
+</html>
