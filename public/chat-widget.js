@@ -4,7 +4,7 @@
   class ChatWidget {
     constructor(options = {}) {
       this.options = {
-        serverUrl: options.serverUrl || 'ws://localhost:3000',
+        serverUrl: options.serverUrl || 'ws://54.255.136.171:3000/',
         position: options.position || 'bottom-right',
         primaryColor: options.primaryColor || '#007bff',
         title: options.title || 'Chat Support',

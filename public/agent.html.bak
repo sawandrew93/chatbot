@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Support Agent Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #agent-messages { 
+            height: 400px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .customer-msg { color: #d63384; margin: 5px 0; }
+        .agent-msg { color: #0d6efd; margin: 5px 0; }
+        #agent-input { width: 70%; padding: 8px; }
+        #send-btn { padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <h1>Live Support Dashboard</h1>
+    <div id="status">Connecting...</div>
+    <div id="queue-alert" style="color:red; display:none;">
+        New customer request! <button id="accept-btn">Accept</button>
+    </div>
+    <div id="agent-messages"></div>
+    <input id="agent-input" placeholder="Type your response...">
+    <button id="send-btn">Send</button>
+    <button id="end-chat-btn" disabled>End Chat</button>
+    <!-- Replace the entire script section with this: -->
+<script>
+    const ws = new WebSocket(`ws://${window.location.host}`);
+    let currentSession = null;
+    const agentId = `agent_${Math.random().toString(36).substr(2, 5)}`;
+
+    ws.onopen = () => {
+        const secretKey = prompt('Enter agent secret key:');
+        ws.send(JSON.stringify({
+            type: 'agent_join',
+            agentId: agentId,
+            secretKey: secretKey
+        }));
+    };
+
+    ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        const messagesDiv = document.getElementById('agent-messages');
+
+        switch(data.type) {
+            case 'agent_status':
+                document.getElementById('status').textContent = data.message;
+                break;
+
+            case 'pending_request':
+                document.getElementById('queue-alert').style.display = 'block';
+                document.getElementById('queue-alert').innerHTML = `
+                    <strong>New request (#${data.position} in queue):</strong>
+                    "${data.customerMessage}"
+                    <button id="accept-btn">Accept</button>
+                `;
+                currentSession = data.sessionId;
+                break;
+
+            case 'customer_assigned':
+                currentSession = data.sessionId;
+                messagesDiv.innerHTML += `<div class="system-msg">Chat started with customer</div>`;
+                data.conversationHistory.forEach(msg => {
+                    addMessage(msg.content, msg.role === 'user' ? 'customer' : 'bot');
+                });
+                document.getElementById('end-chat-btn').disabled = false;
+                break;
+
+            case 'customer_message':
+                addMessage(data.message, 'customer');
+                break;
+        }
+    };
+
+    function addMessage(text, sender) {
+        const div = document.createElement('div');
+        div.className = `${sender}-msg`;
+        div.textContent = `${sender}: ${text}`;
+        document.getElementById('agent-messages').appendChild(div);
+        document.getElementById('agent-messages').scrollTop =
+            document.getElementById('agent-messages').scrollHeight;
+    }
+
+    // Event listeners
+    document.addEventListener('click', (e) => {
+        if (e.target.id === 'accept-btn') {
+            ws.send(JSON.stringify({
+                type: 'accept_request',
+                sessionId: currentSession,
+                agentId: agentId
+            }));
+            document.getElementById('queue-alert').style.display = 'none';
+        }
+
+        if (e.target.id === 'send-btn') {
+            sendMessage();
+        }
+
+        if (e.target.id === 'end-chat-btn') {
+            ws.send(JSON.stringify({
+                type: 'end_chat',
+                sessionId: currentSession
+            }));
+            currentSession = null;
+            document.getElementById('end-chat-btn').disabled = true;
+        }
+    });
+
+    document.getElementById('agent-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    function sendMessage() {
+        const msg = document.getElementById('agent-input').value.trim();
+        if (!msg || !currentSession) return;
+
+        ws.send(JSON.stringify({
+            type: 'agent_message',
+            sessionId: currentSession,
+            message: msg
+        }));
+
+        addMessage(msg, 'agent');
+        document.getElementById('agent-input').value = '';
+    }
+</script>
+</body>
+</html>

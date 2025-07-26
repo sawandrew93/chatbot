@@ -30,10 +30,7 @@ const knowledgeBase = [
     topic: "product_features",
     content: "Our platform offers real-time analytics, automated reporting, and customizable dashboards."
   },
-  {
-    topic: "pricing",
-    content: "We offer three tiers: Basic ($29/month), Professional ($79/month), and Enterprise ($199/month)."
-  }
+  // ... (rest of your knowledge base)
 ];
 
 // ========== UTILITY FUNCTIONS ========== //
@@ -42,24 +39,43 @@ function searchKnowledgeBase(query) {
   return knowledgeBase.filter(item => {
     const contentLower = item.content.toLowerCase();
     const topicLower = item.topic.toLowerCase();
-    return contentLower.includes(queryLower) || 
-           topicLower.includes(queryLower.replace(' ', '_'));
+    return contentLower.includes(queryLower.split(' ')[0]) || 
+           topicLower.includes(queryLower.split(' ')[0]) ||
+           queryLower.includes(topicLower.replace('_', ' '));
   });
 }
 
-async function generateAIResponse(userMessage) {
+async function generateAIResponse(userMessage, conversationHistory) {
   const relevantKnowledge = searchKnowledgeBase(userMessage);
-  let context = "You are a helpful customer service AI assistant.\n";
+  
+  let context = "You are a helpful customer service AI assistant. ";
   
   if (relevantKnowledge.length > 0) {
-    context += "Relevant information:\n";
+    context += "Here's relevant information from our knowledge base:\n";
     relevantKnowledge.forEach(item => {
       context += `- ${item.content}\n`;
     });
   }
 
-  const result = await model.generateContent(context + `User question: ${userMessage}`);
-  return result.response.text();
+  context += `
+Rules:
+1. Answer based on the knowledge base when possible
+2. If you cannot answer from the knowledge base, politely say so and offer to connect them with a human agent
+3. Be helpful, friendly, and concise
+4. If the user asks to speak with a human, respond with "HUMAN_REQUEST" exactly
+
+User question: ${userMessage}`;
+
+  const result = await model.generateContent(context);
+  const response = result.response.text();
+  
+  if (response.includes("HUMAN_REQUEST") || 
+      response.toLowerCase().includes("connect with a human") ||
+      response.toLowerCase().includes("speak with a human")) {
+    return "I'd be happy to connect you with one of our human agents who can better assist you. Please wait a moment while I find someone available.";
+  }
+  
+  return response;
 }
 
 // ========== WEBSOCKET HANDLERS ========== //
@@ -86,7 +102,7 @@ async function handleCustomerMessage(ws, sessionId, message) {
   }
 
   try {
-    const aiResponse = await generateAIResponse(message);
+    const aiResponse = await generateAIResponse(message, conversation.messages);
     conversation.messages.push({ role: 'assistant', content: aiResponse });
     
     ws.send(JSON.stringify({
@@ -95,7 +111,7 @@ async function handleCustomerMessage(ws, sessionId, message) {
       sessionId
     }));
   } catch (error) {
-    console.error('AI error:', error);
+    console.error('AI Response error:', error);
     ws.send(JSON.stringify({
       type: 'error',
       message: 'Sorry, I encountered an error. Would you like to connect with a human agent?'
@@ -104,22 +120,21 @@ async function handleCustomerMessage(ws, sessionId, message) {
 }
 
 function handleAgentJoin(ws, agentId) {
-  console.log(`Agent ${agentId} connected`);
   humanAgents.set(agentId, ws);
-
-  // Notify agent of waiting customers
+  
+  // Immediately send any waiting requests
   waitingQueue.forEach(sessionId => {
     const conversation = conversations.get(sessionId);
     if (conversation) {
       ws.send(JSON.stringify({
         type: 'pending_request',
-        sessionId,
+        sessionId: sessionId,
         position: waitingQueue.indexOf(sessionId) + 1,
-        lastMessage: conversation.messages.slice(-1)[0]?.content || "New request"
+        customerMessage: conversation.messages.slice(-1)[0]?.content || "New customer request"
       }));
     }
   });
-
+  
   ws.send(JSON.stringify({
     type: 'agent_status',
     message: `You're now available as agent ${agentId}`,
@@ -129,18 +144,14 @@ function handleAgentJoin(ws, agentId) {
 
 function handleAcceptRequest(sessionId, agentId) {
   const conversation = conversations.get(sessionId);
-  const agentWs = humanAgents.get(agentId);
+  if (!conversation) return;
 
-  if (!conversation || !agentWs) return;
+  const agentWs = humanAgents.get(agentId);
+  if (!agentWs) return;
 
   conversation.hasHuman = true;
   conversation.agentWs = agentWs;
 
-  // Remove from queue
-  const index = waitingQueue.indexOf(sessionId);
-  if (index > -1) waitingQueue.splice(index, 1);
-
-  // Notify both parties
   conversation.customerWs.send(JSON.stringify({
     type: 'human_joined',
     message: 'A human agent has joined the chat!'
@@ -149,31 +160,36 @@ function handleAcceptRequest(sessionId, agentId) {
   agentWs.send(JSON.stringify({
     type: 'customer_assigned',
     sessionId,
-    history: conversation.messages
+    conversationHistory: conversation.messages
   }));
+
+  const index = waitingQueue.indexOf(sessionId);
+  if (index > -1) {
+    waitingQueue.splice(index, 1);
+  }
 }
 
 function handleAgentMessage(sessionId, message) {
   const conversation = conversations.get(sessionId);
-  if (!conversation || !conversation.customerWs) return;
-
-  conversation.messages.push({ role: 'agent', content: message });
-  conversation.customerWs.send(JSON.stringify({
-    type: 'agent_message',
-    message
-  }));
+  if (conversation && conversation.customerWs) {
+    conversation.messages.push({ role: 'agent', content: message });
+    conversation.customerWs.send(JSON.stringify({
+      type: 'agent_message',
+      message
+    }));
+  }
 }
 
 function handleEndChat(sessionId) {
   const conversation = conversations.get(sessionId);
-  if (!conversation) return;
-
-  conversation.customerWs.send(JSON.stringify({
-    type: 'agent_left',
-    message: 'The agent has ended the chat.'
-  }));
-  conversation.hasHuman = false;
-  conversation.agentWs = null;
+  if (conversation) {
+    conversation.customerWs.send(JSON.stringify({
+      type: 'agent_left',
+      message: 'The agent has ended the chat. You can continue with the AI assistant.'
+    }));
+    conversation.hasHuman = false;
+    conversation.agentWs = null;
+  }
 }
 
 async function handleHumanRequest(sessionId) {
@@ -184,14 +200,12 @@ async function handleHumanRequest(sessionId) {
     waitingQueue.push(sessionId);
   }
 
-  // Notify all agents
-  humanAgents.forEach((ws, agentId) => {
-    console.log(`Notifying agent ${agentId}`);
-    ws.send(JSON.stringify({
+  humanAgents.forEach((agentWs, agentId) => {
+    agentWs.send(JSON.stringify({
       type: 'pending_request',
-      sessionId,
+      sessionId: sessionId,
       position: waitingQueue.indexOf(sessionId) + 1,
-      lastMessage: conversation.messages.slice(-1)[0]?.content || "Help needed"
+      customerMessage: conversation.messages.slice(-1)[0]?.content || "New customer request"
     }));
   });
 
@@ -201,56 +215,68 @@ async function handleHumanRequest(sessionId) {
   }));
 }
 
+
+
 async function handleWebSocketMessage(ws, data) {
-  try {
-    switch(data.type) {
-      case 'customer_message':
-        await handleCustomerMessage(ws, data.sessionId, data.message);
-        break;
-      case 'agent_join':
-        if (data.secretKey === process.env.AGENT_SECRET) {
-          handleAgentJoin(ws, data.agentId);
-        } else {
-          ws.close();
-        }
-        break;
-      case 'agent_message':
-        handleAgentMessage(data.sessionId, data.message);
-        break;
-      case 'request_human':
-        await handleHumanRequest(data.sessionId);
-        break;
-      case 'accept_request':
-        handleAcceptRequest(data.sessionId, data.agentId);
-        break;
-      case 'end_chat':
-        handleEndChat(data.sessionId);
-        break;
-    }
-  } catch (error) {
-    console.error('Message handling error:', error);
+  const { type, sessionId, message, agentId } = data;
+
+  switch (type) {
+    case 'customer_message':
+      await handleCustomerMessage(ws, sessionId, message);
+      break;
+    case 'agent_join':
+      handleAgentJoin(ws, agentId);
+      break;
+    case 'agent_message':
+      handleAgentMessage(sessionId, message);
+      break;
+    case 'request_human':
+      await handleHumanRequest(sessionId);
+      break;
+    case 'accept_request':
+      handleAcceptRequest(sessionId, agentId);
+      break;
+    case 'end_chat':
+      handleEndChat(sessionId);
+      break;
   }
 }
 
 // ========== WEBSOCKET SETUP ========== //
 wss.on('connection', (ws) => {
-  console.log('New connection');
+  console.log('New WebSocket connection');
 
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
+      
+      if (data.type === 'agent_join') {
+        if (data.secretKey !== process.env.AGENT_SECRET) {
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Invalid agent credentials' 
+          }));
+          ws.close();
+          return;
+        }
+      }
+      
       await handleWebSocketMessage(ws, data);
     } catch (error) {
-      console.error('Message parse error:', error);
+      console.error('WebSocket error:', error);
     }
   });
 
   ws.on('close', () => {
-    // Clean up disconnected agents
     for (const [agentId, agentWs] of humanAgents) {
       if (agentWs === ws) {
         humanAgents.delete(agentId);
-        console.log(`Agent ${agentId} disconnected`);
+        break;
+      }
+    }
+    for (const [sessionId, session] of conversations) {
+      if (session.customerWs === ws || session.agentWs === ws) {
+        conversations.delete(sessionId);
         break;
       }
     }
@@ -263,7 +289,7 @@ app.get('/agent', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', agents: humanAgents.size, queue: waitingQueue.length });
+  res.json({ status: 'OK' });
 });
 
 server.listen(process.env.PORT || 3000, () => {
