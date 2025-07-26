@@ -1,0 +1,419 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const WebSocket = require('ws');
+const http = require('http');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+// Storage
+const conversations = new Map();
+const humanAgents = new Map();
+const waitingQueue = [];
+
+// Knowledge Base
+const knowledgeBase = [
+  {
+    topic: "product_features",
+    content: "Our platform offers real-time analytics, automated reporting, and customizable dashboards."
+  },
+  {
+    topic: "pricing",
+    content: "We offer three tiers: Basic ($29/month), Professional ($79/month), and Enterprise ($199/month)."
+  }
+];
+
+// ========== UTILITY FUNCTIONS ========== //
+function searchKnowledgeBase(query) {
+  const queryLower = query.toLowerCase();
+  return knowledgeBase.filter(item => {
+    const contentLower = item.content.toLowerCase();
+    const topicLower = item.topic.toLowerCase();
+    return contentLower.includes(queryLower) ||
+           topicLower.includes(queryLower.replace(' ', '_'));
+  });
+}
+
+// Check if user wants to speak to a human
+function wantsHumanAgent(message) {
+  const humanKeywords = [
+    'human', 'agent', 'person', 'representative', 'speak to someone',
+    'talk to human', 'customer service', 'support agent', 'live chat',
+    'real person', 'not ai', 'not bot', 'transfer', 'escalate'
+  ];
+  
+  const messageLower = message.toLowerCase();
+  return humanKeywords.some(keyword => messageLower.includes(keyword));
+}
+
+async function generateAIResponse(userMessage) {
+  // First check if user wants human agent
+  if (wantsHumanAgent(userMessage)) {
+    return null; // Return null to indicate human handoff needed
+  }
+
+  const relevantKnowledge = searchKnowledgeBase(userMessage);
+  let context = "You are a helpful customer service AI assistant.\n";
+  
+  // Add instruction to suggest human agent for complex queries
+  context += "If you cannot answer a question or if it requires complex assistance, suggest that the user can connect with a human agent by typing 'human' or clicking the person icon.\n";
+
+  if (relevantKnowledge.length > 0) {
+    context += "Relevant information:\n";
+    relevantKnowledge.forEach(item => {
+      context += `- ${item.content}\n`;
+    });
+  }
+
+  try {
+    const result = await model.generateContent(context + `User question: ${userMessage}`);
+    return result.response.text();
+  } catch (error) {
+    console.error('AI generation error:', error);
+    return "I'm having trouble processing your request right now. Would you like to connect with a human agent instead?";
+  }
+}
+
+// ========== WEBSOCKET HANDLERS ========== //
+async function handleCustomerMessage(ws, sessionId, message) {
+  if (!conversations.has(sessionId)) {
+    conversations.set(sessionId, {
+      customerWs: ws,
+      messages: [],
+      hasHuman: false,
+      agentWs: null
+    });
+  }
+
+  const conversation = conversations.get(sessionId);
+  conversation.messages.push({ role: 'user', content: message });
+
+  // If already connected to human agent, forward message
+  if (conversation.hasHuman && conversation.agentWs) {
+    conversation.agentWs.send(JSON.stringify({
+      type: 'customer_message',
+      sessionId,
+      message
+    }));
+    return;
+  }
+
+  try {
+    const aiResponse = await generateAIResponse(message);
+    
+    // If AI returns null, user wants human agent
+    if (aiResponse === null) {
+      await handleHumanRequest(sessionId);
+      return;
+    }
+
+    conversation.messages.push({ role: 'assistant', content: aiResponse });
+
+    ws.send(JSON.stringify({
+      type: 'ai_response',
+      message: aiResponse,
+      sessionId
+    }));
+  } catch (error) {
+    console.error('AI error:', error);
+    ws.send(JSON.stringify({
+      type: 'error',
+      message: 'Sorry, I encountered an error. Would you like to connect with a human agent?'
+    }));
+  }
+}
+
+function handleAgentJoin(ws, agentId) {
+  console.log(`Agent ${agentId} connected`);
+  humanAgents.set(agentId, ws);
+
+  // Notify agent of waiting customers with current queue status
+  waitingQueue.forEach((sessionId, index) => {
+    const conversation = conversations.get(sessionId);
+    if (conversation) {
+      ws.send(JSON.stringify({
+        type: 'pending_request',
+        sessionId,
+        position: index + 1,
+        totalInQueue: waitingQueue.length,
+        lastMessage: conversation.messages.slice(-1)[0]?.content || "New request"
+      }));
+    }
+  });
+
+  ws.send(JSON.stringify({
+    type: 'agent_status',
+    message: `You're now available as agent ${agentId}`,
+    waitingCustomers: waitingQueue.length,
+    totalAgents: humanAgents.size
+  }));
+
+  // Notify other agents about new agent joining
+  humanAgents.forEach((otherWs, otherId) => {
+    if (otherId !== agentId && otherWs.readyState === WebSocket.OPEN) {
+      otherWs.send(JSON.stringify({
+        type: 'agent_joined',
+        agentId: agentId,
+        totalAgents: humanAgents.size
+      }));
+    }
+  });
+}
+
+function handleAcceptRequest(sessionId, agentId) {
+  const conversation = conversations.get(sessionId);
+  const agentWs = humanAgents.get(agentId);
+
+  if (!conversation || !agentWs) {
+    console.log('Cannot accept request - conversation or agent not found');
+    return;
+  }
+
+  // Check if already assigned to another agent
+  if (conversation.hasHuman) {
+    agentWs.send(JSON.stringify({
+      type: 'request_already_taken',
+      message: 'This customer has already been assigned to another agent',
+      sessionId
+    }));
+    return;
+  }
+
+  conversation.hasHuman = true;
+  conversation.agentWs = agentWs;
+  conversation.assignedAgent = agentId;
+
+  // Remove from queue
+  const index = waitingQueue.indexOf(sessionId);
+  if (index > -1) waitingQueue.splice(index, 1);
+
+  // Notify ALL other agents that this request was taken
+  humanAgents.forEach((ws, otherId) => {
+    if (otherId !== agentId && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'request_taken',
+        sessionId,
+        takenBy: agentId,
+        remainingQueue: waitingQueue.length
+      }));
+    }
+  });
+
+  // Notify customer that human joined
+  if (conversation.customerWs && conversation.customerWs.readyState === WebSocket.OPEN) {
+    conversation.customerWs.send(JSON.stringify({
+      type: 'human_joined',
+      message: `A human agent (${agentId}) has joined the chat! How can I help you?`
+    }));
+  }
+
+  // Send conversation history to accepting agent
+  agentWs.send(JSON.stringify({
+    type: 'customer_assigned',
+    sessionId,
+    history: conversation.messages,
+    queuePosition: 0 // They're no longer in queue
+  }));
+
+  console.log(`Agent ${agentId} accepted request for session ${sessionId}. Queue now: ${waitingQueue.length}`);
+}
+
+function handleAgentMessage(sessionId, message) {
+  const conversation = conversations.get(sessionId);
+  if (!conversation || !conversation.customerWs) {
+    console.log('Cannot send agent message - conversation or customer not found');
+    return;
+  }
+
+  conversation.messages.push({ role: 'agent', content: message });
+  
+  if (conversation.customerWs.readyState === WebSocket.OPEN) {
+    conversation.customerWs.send(JSON.stringify({
+      type: 'agent_message',
+      message
+    }));
+  }
+}
+
+function handleEndChat(sessionId) {
+  const conversation = conversations.get(sessionId);
+  if (!conversation) return;
+
+  const agentId = conversation.assignedAgent;
+
+  if (conversation.customerWs && conversation.customerWs.readyState === WebSocket.OPEN) {
+    conversation.customerWs.send(JSON.stringify({
+      type: 'agent_left',
+      message: 'The agent has ended the chat. Feel free to ask me anything else!'
+    }));
+  }
+  
+  conversation.hasHuman = false;
+  conversation.agentWs = null;
+  conversation.assignedAgent = null;
+  
+  // Notify other agents that this chat ended
+  humanAgents.forEach((ws, otherId) => {
+    if (otherId !== agentId && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'chat_ended',
+        sessionId,
+        endedBy: agentId,
+        totalQueue: waitingQueue.length
+      }));
+    }
+  });
+  
+  console.log(`Chat ended for session ${sessionId} by agent ${agentId}`);
+}
+
+async function handleHumanRequest(sessionId) {
+  const conversation = conversations.get(sessionId);
+  if (!conversation) return;
+
+  // Check if there are any available agents
+  if (humanAgents.size === 0) {
+    conversation.customerWs.send(JSON.stringify({
+      type: 'no_agents_available',
+      message: 'Sorry, no human agents are currently available. Please try again later or continue chatting with me!'
+    }));
+    return;
+  }
+
+  if (!waitingQueue.includes(sessionId)) {
+    waitingQueue.push(sessionId);
+  }
+
+  const queuePosition = waitingQueue.indexOf(sessionId) + 1;
+
+  // Notify all agents with updated queue information
+  humanAgents.forEach((ws, agentId) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      console.log(`Notifying agent ${agentId} of new request`);
+      ws.send(JSON.stringify({
+        type: 'pending_request',
+        sessionId,
+        position: queuePosition,
+        totalInQueue: waitingQueue.length,
+        lastMessage: conversation.messages.slice(-1)[0]?.content || "Customer wants to speak with human"
+      }));
+    }
+  });
+
+  if (conversation.customerWs && conversation.customerWs.readyState === WebSocket.OPEN) {
+    conversation.customerWs.send(JSON.stringify({
+      type: 'waiting_for_human',
+      message: `You've been added to the queue (position ${queuePosition}). A human agent will be with you shortly.`
+    }));
+  }
+
+  console.log(`Human request added to queue for session ${sessionId}, position ${queuePosition}`);
+}
+
+async function handleWebSocketMessage(ws, data) {
+  try {
+    console.log('Received message:', data.type, data);
+    
+    switch(data.type) {
+      case 'customer_message':
+        await handleCustomerMessage(ws, data.sessionId, data.message);
+        break;
+      case 'agent_join':
+        if (data.secretKey === process.env.AGENT_SECRET) {
+          handleAgentJoin(ws, data.agentId);
+        } else {
+          console.log('Invalid agent secret key');
+          ws.close();
+        }
+        break;
+      case 'agent_message':
+        handleAgentMessage(data.sessionId, data.message);
+        break;
+      case 'request_human':
+        await handleHumanRequest(data.sessionId);
+        break;
+      case 'accept_request':
+        handleAcceptRequest(data.sessionId, data.agentId);
+        break;
+      case 'end_chat':
+        handleEndChat(data.sessionId);
+        break;
+      default:
+        console.log('Unknown message type:', data.type);
+    }
+  } catch (error) {
+    console.error('Message handling error:', error);
+  }
+}
+
+// ========== WEBSOCKET SETUP ========== //
+wss.on('connection', (ws) => {
+  console.log('New WebSocket connection');
+
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+      await handleWebSocketMessage(ws, data);
+    } catch (error) {
+      console.error('Message parse error:', error);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+    
+    // Clean up disconnected agents
+    for (const [agentId, agentWs] of humanAgents) {
+      if (agentWs === ws) {
+        humanAgents.delete(agentId);
+        console.log(`Agent ${agentId} disconnected`);
+        break;
+      }
+    }
+
+    // Clean up disconnected customers
+    for (const [sessionId, conversation] of conversations) {
+      if (conversation.customerWs === ws) {
+        console.log(`Customer ${sessionId} disconnected`);
+        // Remove from queue if waiting
+        const queueIndex = waitingQueue.indexOf(sessionId);
+        if (queueIndex > -1) {
+          waitingQueue.splice(queueIndex, 1);
+        }
+        break;
+      }
+    }
+  });
+});
+
+// ========== ROUTES ========== //
+app.get('/agent', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/agent.html'));
+});
+
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    agents: humanAgents.size, 
+    queue: waitingQueue.length,
+    conversations: conversations.size
+  });
+});
+
+server.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
+  console.log('Make sure to set AGENT_SECRET in your .env file');
+});

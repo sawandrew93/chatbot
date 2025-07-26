@@ -2,177 +2,1000 @@
 <html>
 <head>
     <title>Support Agent Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-        #status { padding: 10px; background: #f0f0f0; margin-bottom: 20px; }
-        #agent-messages { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-        .customer-msg { color: #d63384; margin: 5px 0; }
-        .agent-msg { color: #0d6efd; margin: 5px 0; }
-        .system-msg { color: #20c997; margin: 5px 0; }
-        #agent-input { width: 70%; padding: 8px; }
-        #send-btn, #end-chat-btn { padding: 8px 15px; }
-        #notification { 
-            display: none; 
-            padding: 10px; 
-            background: #fff3cd; 
-            margin-bottom: 10px;
-            border-left: 5px solid #ffc107;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 0;
+            margin: 0;
+            background: #f5f7fa;
         }
-        #debug { 
-            margin-top: 20px; 
-            padding: 10px; 
-            background: #f8f9fa; 
-            font-family: monospace;
+
+        /* Login Form Styles */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-form {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-form h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .login-btn:hover {
+            background: #0056b3;
+        }
+
+        .login-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Dashboard Styles */
+        .dashboard {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .dashboard-header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .user-details h1 {
+            margin: 0;
+            color: #333;
+        }
+
+        .user-details p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        #status {
+            padding: 15px;
+            background: #e8f5e8;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-offline {
+            background: #f8d7da !important;
+            border-left-color: #dc3545 !important;
+        }
+
+        #notification {
+            display: none;
+            padding: 15px;
+            background: #fff3cd;
+            margin-bottom: 20px;
+            border-left: 4px solid #ffc107;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .notification-reconnected {
+            background: #d1ecf1 !important;
+            border-left-color: #17a2b8 !important;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 6px;
+            text-align: center;
+            min-width: 100px;
+            flex: 1;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .stat-label {
             font-size: 12px;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+
+        .chat-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        #agent-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #fafafa;
+        }
+
+        .customer-msg {
+            color: #d63384;
+            margin: 8px 0;
+            padding: 10px 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 3px solid #d63384;
+        }
+
+        .agent-msg {
+            color: #0d6efd;
+            margin: 8px 0;
+            padding: 10px 15px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            border-left: 3px solid #0d6efd;
+        }
+
+        .system-msg {
+            color: #20c997;
+            margin: 8px 0;
+            padding: 10px 15px;
+            background: #d1ecf1;
+            border-radius: 8px;
+            font-style: italic;
+        }
+
+        .bot-msg {
+            color: #6c757d;
+            margin: 8px 0;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 3px solid #6c757d;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #agent-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        #agent-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        #send-btn {
+            background: #007bff;
+            color: white;
+        }
+
+        #send-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+
+        #end-chat-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        #end-chat-btn:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        #accept-btn {
+            background: #28a745;
+            color: white;
+            font-weight: bold;
+        }
+
+        #accept-btn:hover {
+            background: #218838;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .canned-responses {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .canned-response {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 8px 12px;
+            margin: 2px 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .canned-response:hover {
+            background: #e9ecef;
+        }
+
+        .connection-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .connected { background: #28a745; }
+        .disconnected { background: #dc3545; }
+        .connecting {
+            background: #ffc107;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        #debug {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        #clear-debug {
+            background: #6c757d;
+            color: white;
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+
+        .demo-credentials {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .demo-credentials h3 {
+            margin: 0 0 10px 0;
+            color: #0066cc;
+        }
+
+        .demo-credentials p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .user-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .dashboard {
+                padding: 10px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Live Support Dashboard</h1>
-    <div id="status">Connecting to server...</div>
-    <div id="notification">
-        <strong id="notification-text"></strong>
-        <button id="accept-btn">Accept Chat</button>
+    <!-- Login Form -->
+    <div id="login-container" class="login-container">
+        <form id="login-form" class="login-form">
+            <h1>🎧 Agent Login</h1>
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" id="login-btn" class="login-btn">Sign In</button>
+            
+            <div class="demo-credentials">
+                <h3>Demo Accounts</h3>
+                <p><strong>Agent 1:</strong> john_doe / password123</p>
+                <p><strong>Agent 2:</strong> jane_smith / password456</p>
+            </div>
+        </form>
     </div>
-    <div id="agent-messages"></div>
-    <div>
-        <input id="agent-input" placeholder="Type your response..." disabled>
-        <button id="send-btn" disabled>Send</button>
-        <button id="end-chat-btn" disabled>End Chat</button>
-    </div>
-    <div id="debug">
-        <h3>Debug Console</h3>
-        <div id="debug-log"></div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard">
+        <div class="dashboard-header">
+            <div class="user-info">
+                <div class="user-details">
+                    <h1 id="agent-name">Loading...</h1>
+                    <p id="agent-role">Role: Loading...</p>
+                    <p id="agent-email">Email: Loading...</p>
+                </div>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+            
+            <div id="status">
+                <span class="connection-indicator connecting"></span>
+                Connecting to server...
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="queue-count">0</div>
+                    <div class="stat-label">In Queue</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="active-chats">0</div>
+                    <div class="stat-label">Active Chats</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="total-agents">0</div>
+                    <div class="stat-label">Total Agents</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="notification">
+            <strong id="notification-text"></strong>
+            <button id="accept-btn">Accept Chat</button>
+        </div>
+
+        <div class="chat-container">
+            <div id="agent-messages"></div>
+            <div class="input-container">
+                <input id="agent-input" placeholder="Type your response..." disabled>
+                <button id="send-btn" disabled>Send Message</button>
+                <button id="canned-btn" disabled>📝</button>
+                <button id="end-chat-btn" disabled>End Chat</button>
+            </div>
+
+            <div class="canned-responses" id="canned-responses">
+                <h4>Quick Responses:</h4>
+            </div>
+        </div>
+
+        <div id="debug">
+            <div class="debug-header">
+                <h3 style="margin: 0;">Debug Console</h3>
+                <button id="clear-debug">Clear</button>
+            </div>
+            <div id="debug-log"></div>
+        </div>
     </div>
 
     <script>
-        const debugLog = (message) => {
-            const logDiv = document.getElementById('debug-log');
-            logDiv.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
-            console.log(message);
-        };
+        class AgentDashboard {
+            constructor() {
+                this.ws = null;
+                this.currentSession = null;
+                this.connectionStatus = 'disconnected';
+                this.user = null;
+                this.token = null;
+                this.cannedResponses = [];
+                this.debugCount = 0;
+                this.MAX_DEBUG_ENTRIES = 50;
 
-        let ws;
-        let currentSession = null;
-        const agentId = `agent_${Math.random().toString(36).substr(2, 6)}`;
+                this.init();
+            }
 
-        function connectWebSocket() {
-            ws = new WebSocket(`ws://${window.location.host}`);
+            init() {
+                // Check if already logged in
+                this.token = localStorage.getItem('agentToken');
+                if (this.token) {
+                    this.validateToken();
+                } else {
+                    this.showLogin();
+                }
 
-            ws.onopen = () => {
-                debugLog('WebSocket connected');
-                const secretKey = prompt('Enter agent secret key:');
-                ws.send(JSON.stringify({
-                    type: 'agent_join',
-                    agentId: agentId,
-                    secretKey: secretKey
-                }));
-            };
+                this.setupEventListeners();
+            }
 
-            ws.onmessage = (e) => {
-                debugLog(`Received: ${e.data}`);
-                const data = JSON.parse(e.data);
-                
+            setupEventListeners() {
+                // Login form
+                document.getElementById('login-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleLogin();
+                });
+
+                // Dashboard
+                document.getElementById('logout-btn').addEventListener('click', () => this.logout());
+                document.getElementById('accept-btn').addEventListener('click', () => this.acceptRequest());
+                document.getElementById('send-btn').addEventListener('click', () => this.sendMessage());
+                document.getElementById('agent-input').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.sendMessage();
+                });
+                document.getElementById('canned-btn').addEventListener('click', () => this.toggleCannedResponses());
+                document.getElementById('end-chat-btn').addEventListener('click', () => this.endChat());
+                document.getElementById('clear-debug').addEventListener('click', () => this.clearDebug());
+            }
+
+            async validateToken() {
+                try {
+                    const response = await fetch('/api/agent/validate', {
+                        headers: {
+                            'Authorization': `Bearer ${this.token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.user = data.user;
+                        this.showDashboard();
+                        this.connectWebSocket();
+                    } else {
+                        localStorage.removeItem('agentToken');
+                        this.showLogin();
+                    }
+                } catch (error) {
+                    console.error('Token validation error:', error);
+                    this.showLogin();
+                }
+            }
+
+            async handleLogin() {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                const loginBtn = document.getElementById('login-btn');
+                const errorDiv = document.getElementById('error-message');
+
+                loginBtn.disabled = true;
+                loginBtn.textContent = 'Signing in...';
+                errorDiv.style.display = 'none';
+
+                try {
+                    const response = await fetch('/api/agent/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.token = data.token;
+                        this.user = data.user;
+                        localStorage.setItem('agentToken', this.token);
+                        this.showDashboard();
+                        this.connectWebSocket();
+                    } else {
+                        this.showError(data.error || 'Login failed');
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    this.showError('Connection error. Please try again.');
+                } finally {
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                }
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+
+            showLogin() {
+                document.getElementById('login-container').style.display = 'flex';
+                document.getElementById('dashboard').style.display = 'none';
+            }
+
+            showDashboard() {
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+
+                // Update user info
+                document.getElementById('agent-name').textContent = this.user.name;
+                document.getElementById('agent-role').textContent = `Role: ${this.user.role.replace('_', ' ').toUpperCase()}`;
+                document.getElementById('agent-email').textContent = `Email: ${this.user.email}`;
+            }
+
+            logout() {
+                localStorage.removeItem('agentToken');
+                if (this.ws) {
+                    this.ws.close();
+                }
+                this.token = null;
+                this.user = null;
+                this.showLogin();
+            }
+
+            connectWebSocket() {
+                this.updateConnectionStatus('connecting', 'Connecting to server...');
+                this.debugLog('Attempting WebSocket connection...', 'info');
+
+                const wsUrl = `ws://${window.location.host}`;
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.debugLog('WebSocket connected successfully', 'success');
+
+                    this.ws.send(JSON.stringify({
+                        type: 'agent_join',
+                        agentId: this.user.id,
+                        token: this.token
+                    }));
+                };
+
+                this.ws.onmessage = (e) => {
+                    this.debugLog(`Received: ${e.data}`, 'info');
+                    try {
+                        const data = JSON.parse(e.data);
+                        this.handleMessage(data);
+                    } catch (error) {
+                        this.debugLog(`Error parsing message: ${error.message}`, 'error');
+                    }
+                };
+
+                this.ws.onclose = (e) => {
+                    this.updateConnectionStatus('disconnected', 'Connection lost - attempting to reconnect...');
+                    this.debugLog(`WebSocket closed: ${e.code} ${e.reason}`, 'error');
+
+                    if (e.code === 1000) {
+                        // Unauthorized, redirect to login
+                        this.logout();
+                        return;
+                    }
+
+                    setTimeout(() => this.connectWebSocket(), 3000);
+                };
+
+                this.ws.onerror = (err) => {
+                    this.debugLog(`WebSocket error: ${err.message || 'Unknown error'}`, 'error');
+                };
+            }
+
+            handleMessage(data) {
                 switch(data.type) {
                     case 'agent_status':
-                        document.getElementById('status').textContent = data.message;
+                        this.updateConnectionStatus('connected', data.message);
+                        this.updateStats({
+                            waitingCustomers: data.waitingCustomers || 0,
+                            totalAgents: data.totalAgents || 1
+                        });
+
+                        if (data.status === 'reconnected') {
+                            document.getElementById('status').classList.add('notification-reconnected');
+                            setTimeout(() => {
+                                document.getElementById('status').classList.remove('notification-reconnected');
+                            }, 3000);
+                        }
                         break;
-                        
+
+                    case 'auth_error':
+                        this.debugLog(`Authentication error: ${data.message}`, 'error');
+                        this.logout();
+                        break;
+
+                    case 'connection_restored':
+                        this.handleConnectionRestored(data);
+                        break;
+
                     case 'pending_request':
-                        document.getElementById('notification').style.display = 'block';
-                        document.getElementById('notification-text').textContent = 
-                            `New request (#${data.position} in queue): "${data.lastMessage}"`;
-                        currentSession = data.sessionId;
-                        break;
-                        
-                    case 'customer_assigned':
-                        currentSession = data.sessionId;
-                        document.getElementById('agent-input').disabled = false;
-                        document.getElementById('send-btn').disabled = false;
-                        document.getElementById('end-chat-btn').disabled = false;
-                        document.getElementById('notification').style.display = 'none';
-                        
-                        const messagesDiv = document.getElementById('agent-messages');
-                        messagesDiv.innerHTML = '<div class="system-msg">Chat started</div>';
-                        
-                        data.history.forEach(msg => {
-                            const div = document.createElement('div');
-                            div.className = msg.role === 'user' ? 'customer-msg' : 'bot-msg';
-                            div.textContent = `${msg.role}: ${msg.content}`;
-                            messagesDiv.appendChild(div);
+                        this.showNotification(data);
+                        this.updateStats({
+                            queueCount: data.totalInQueue || data.position
                         });
                         break;
-                        
-                    case 'customer_message':
-                        const msgDiv = document.createElement('div');
-                        msgDiv.className = 'customer-msg';
-                        msgDiv.textContent = `customer: ${data.message}`;
-                        document.getElementById('agent-messages').appendChild(msgDiv);
-                        document.getElementById('agent-messages').scrollTop = 
-                            document.getElementById('agent-messages').scrollHeight;
+
+                    case 'customer_assigned':
+                        this.acceptRequest(data);
                         break;
+
+                    case 'customer_message':
+                        this.addMessage(`Customer: ${data.message}`, 'customer-msg');
+                        break;
+
+                    case 'request_taken':
+                        this.handleRequestTaken(data);
+                        break;
+
+                    case 'request_already_taken':
+                        this.handleRequestAlreadyTaken(data);
+                        break;
+
+                    case 'agent_joined':
+                        this.debugLog(`Agent ${data.agentName} joined. Total agents: ${data.totalAgents}`, 'success');
+                        this.updateStats({ totalAgents: data.totalAgents });
+                        break;
+
+                    case 'agent_left':
+                        this.debugLog(`Agent ${data.agentName} left. Total agents: ${data.totalAgents}`, 'info');
+                        this.updateStats({ totalAgents: data.totalAgents });
+                        break;
+
+                    default:
+                        this.debugLog(`Unhandled message type: ${data.type}`, 'info');
                 }
-            };
+            }
 
-            ws.onclose = () => {
-                debugLog('WebSocket disconnected - attempting to reconnect...');
-                setTimeout(connectWebSocket, 3000);
-            };
+            updateConnectionStatus(status, message) {
+                this.connectionStatus = status;
+                const statusDiv = document.getElementById('status');
+                const indicator = statusDiv.querySelector('.connection-indicator');
 
-            ws.onerror = (err) => {
-                debugLog(`WebSocket error: ${err.message}`);
-            };
+                indicator.className = `connection-indicator ${status}`;
+                statusDiv.innerHTML = `<span class="connection-indicator ${status}"></span>${message}`;
+
+                if (status === 'disconnected') {
+                    statusDiv.classList.add('status-offline');
+                } else {
+                    statusDiv.classList.remove('status-offline');
+                }
+            }
+
+            showNotification(data) {
+                document.getElementById('notification').style.display = 'block';
+                const notificationText = document.getElementById('notification-text');
+                const acceptBtn = document.getElementById('accept-btn');
+
+                notificationText.innerHTML = `
+                    📞 <strong>New Request #${data.position}</strong> of ${data.totalInQueue || data.position}<br>
+                    💬 "${data.lastMessage}"
+                `;
+
+                acceptBtn.style.display = 'inline-block';
+                acceptBtn.disabled = false;
+                this.currentSession = data.sessionId;
+
+                this.debugLog(`New customer request: ${data.sessionId} (${data.position}/${data.totalInQueue})`, 'success');
+            }
+
+            acceptRequest(data = null) {
+                if (!this.currentSession) return;
+
+                if (data) {
+                    // This is the response to accepting a request
+                    this.cannedResponses = data.cannedResponses || [];
+                    this.setupCannedResponses();
+
+                    document.getElementById('agent-input').disabled = false;
+                    document.getElementById('send-btn').disabled = false;
+                    document.getElementById('canned-btn').disabled = false;
+                    document.getElementById('end-chat-btn').disabled = false;
+                    document.getElementById('notification').style.display = 'none';
+
+                    const messagesDiv = document.getElementById('agent-messages');
+                    messagesDiv.innerHTML = `
+                        <div class="system-msg">✅ Chat started with customer (Session: ${data.sessionId})</div>
+                        <div class="system-msg">📜 Previous conversation history:</div>
+                    `;
+
+                    data.history.forEach(msg => {
+                        const className = msg.role === 'user' ? 'customer-msg' : 'bot-msg';
+                        this.addMessage(`${msg.role}: ${msg.content}`, className);
+                    });
+
+                    this.addMessage('--- Live conversation starts here ---', 'system-msg');
+                    this.updateStats({ activeChats: 1, queueCount: data.queuePosition || 0 });
+                } else {
+                    // This is accepting a pending request
+                    this.ws.send(JSON.stringify({
+                        type: 'accept_request',
+                        sessionId: this.currentSession,
+                        agentId: this.user.id
+                    }));
+                    this.debugLog(`Accepting request for session: ${this.currentSession}`, 'info');
+                }
+            }
+
+            setupCannedResponses() {
+                const container = document.getElementById('canned-responses');
+                container.innerHTML = '<h4>Quick Responses:</h4>';
+
+                this.cannedResponses.forEach((response, index) => {
+                    const button = document.createElement('button');
+                    button.className = 'canned-response';
+                    button.textContent = response;
+                    button.onclick = () => {
+                        document.getElementById('agent-input').value = response;
+                        container.style.display = 'none';
+                    };
+                    container.appendChild(button);
+                });
+            }
+
+            toggleCannedResponses() {
+                const container = document.getElementById('canned-responses');
+                container.style.display = container.style.display === 'none' ? 'block' : 'none';
+            }
+
+            sendMessage() {
+                const input = document.getElementById('agent-input');
+                const message = input.value.trim();
+                if (!message || !this.currentSession) return;
+
+                this.ws.send(JSON.stringify({
+                    type: 'agent_message',
+                    sessionId: this.currentSession,
+                    message: message
+                }));
+
+                this.addMessage(`You: ${message}`, 'agent-msg');
+                input.value = '';
+                this.debugLog(`Sent message: ${message}`, 'info');
+            }
+
+            endChat() {
+                if (!this.currentSession) return;
+
+                this.ws.send(JSON.stringify({
+                    type: 'end_chat',
+                    sessionId: this.currentSession
+                }));
+
+                this.currentSession = null;
+
+                document.getElementById('agent-input').disabled = true;
+                document.getElementById('send-btn').disabled = true;
+                document.getElementById('canned-btn').disabled = true;
+                document.getElementById('end-chat-btn').disabled = true;
+
+                document.getElementById('canned-responses').style.display = 'none';
+
+                document.getElementById('agent-messages').innerHTML =
+                    '<div class="system-msg">💤 No active chat. Waiting for customers...</div>';
+
+                this.debugLog('Chat ended by agent', 'info');
+                this.updateStats({ activeChats: 0 });
+            }
+
+            handleRequestTaken(data) {
+                if (this.currentSession === data.sessionId) {
+                    const notificationDiv = document.getElementById('notification');
+                    const notificationText = document.getElementById('notification-text');
+                    const acceptBtn = document.getElementById('accept-btn');
+
+                    notificationText.innerHTML = `⚠️ This request was accepted by <strong>${data.takenBy}</strong>`;
+                    acceptBtn.style.display = 'none';
+
+                    setTimeout(() => {
+                        notificationDiv.style.display = 'none';
+                        acceptBtn.style.display = 'inline-block';
+                        this.currentSession = null;
+                    }, 3000);
+                }
+
+                this.updateStats({ queueCount: data.remainingQueue });
+                this.debugLog(`Request ${data.sessionId} was accepted by ${data.takenBy}. Queue: ${data.remainingQueue}`, 'info');
+            }
+
+            handleRequestAlreadyTaken(data) {
+                this.debugLog(`Attempted to accept already taken request: ${data.sessionId}`, 'error');
+
+                const notificationDiv = document.getElementById('notification');
+                const notificationText = document.getElementById('notification-text');
+                const acceptBtn = document.getElementById('accept-btn');
+
+                notificationText.innerHTML = `❌ ${data.message}`;
+                acceptBtn.style.display = 'none';
+
+                setTimeout(() => {
+                    notificationDiv.style.display = 'none';
+                    acceptBtn.style.display = 'inline-block';
+                    this.currentSession = null;
+                }, 3000);
+            }
+
+            handleConnectionRestored(data) {
+                this.currentSession = data.sessionId;
+
+                document.getElementById('agent-input').disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                document.getElementById('canned-btn').disabled = false;
+                document.getElementById('end-chat-btn').disabled = false;
+                document.getElementById('notification').style.display = 'none';
+
+                const messagesDiv = document.getElementById('agent-messages');
+                messagesDiv.innerHTML = `
+                    <div class="system-msg">🔄 Connection restored! Recent conversation:</div>
+                `;
+
+                data.history.forEach(msg => {
+                    const className = msg.role === 'user' ? 'customer-msg' :
+                                    msg.role === 'agent' ? 'agent-msg' : 'bot-msg';
+                    this.addMessage(`${msg.role}: ${msg.content}`, className);
+                });
+
+                this.debugLog(`Connection restored for session: ${data.sessionId}`, 'success');
+                this.updateStats({ activeChats: 1 });
+            }
+
+            addMessage(message, className) {
+                const messagesDiv = document.getElementById('agent-messages');
+                const msgDiv = document.createElement('div');
+                msgDiv.className = className;
+                msgDiv.textContent = message;
+                messagesDiv.appendChild(msgDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+
+            updateStats(stats) {
+                if (stats.queueCount !== undefined) {
+                    document.getElementById('queue-count').textContent = stats.queueCount;
+                }
+                if (stats.activeChats !== undefined) {
+                    document.getElementById('active-chats').textContent = stats.activeChats;
+                }
+                if (stats.waitingCustomers !== undefined) {
+                    document.getElementById('queue-count').textContent = stats.waitingCustomers;
+                }
+                if (stats.totalAgents !== undefined) {
+                    document.getElementById('total-agents').textContent = stats.totalAgents;
+                }
+            }
+
+            debugLog(message, type = 'info') {
+                const logDiv = document.getElementById('debug-log');
+                const timestamp = new Date().toLocaleTimeString();
+                const color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#6c757d';
+
+                this.debugCount++;
+                logDiv.innerHTML += `<div style="color: ${color}; margin: 2px 0;">[${timestamp}] ${message}</div>`;
+
+                if (this.debugCount > this.MAX_DEBUG_ENTRIES) {
+                    const entries = logDiv.children;
+                    if (entries.length > 0) {
+                        entries[0].remove();
+                    }
+                }
+
+                logDiv.scrollTop = logDiv.scrollHeight;
+                console.log(`[${timestamp}] ${message}`);
+            }
+
+            clearDebug() {
+                document.getElementById('debug-log').innerHTML = '';
+                this.debugCount = 0;
+            }
         }
 
-        // Event listeners
-        document.getElementById('accept-btn').addEventListener('click', () => {
-            if (!currentSession) return;
-            ws.send(JSON.stringify({
-                type: 'accept_request',
-                sessionId: currentSession,
-                agentId: agentId
-            }));
-        });
-
-        document.getElementById('send-btn').addEventListener('click', sendMessage);
-        document.getElementById('agent-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-
-        document.getElementById('end-chat-btn').addEventListener('click', () => {
-            if (!currentSession) return;
-            ws.send(JSON.stringify({
-                type: 'end_chat',
-                sessionId: currentSession
-            }));
-            currentSession = null;
-            document.getElementById('agent-input').disabled = true;
-            document.getElementById('send-btn').disabled = true;
-            document.getElementById('end-chat-btn').disabled = true;
-        });
-
-        function sendMessage() {
-            const input = document.getElementById('agent-input');
-            const message = input.value.trim();
-            if (!message || !currentSession) return;
-            
-            ws.send(JSON.stringify({
-                type: 'agent_message',
-                sessionId: currentSession,
-                message: message
-            }));
-            
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'agent-msg';
-            msgDiv.textContent = `you: ${message}`;
-            document.getElementById('agent-messages').appendChild(msgDiv);
-            input.value = '';
-            document.getElementById('agent-messages').scrollTop = 
-                document.getElementById('agent-messages').scrollHeight;
-        }
-
-        // Initialize
-        connectWebSocket();
+        // Initialize the dashboard
+        new AgentDashboard();
     </script>
 </body>
 </html>

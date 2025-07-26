@@ -1,50 +1,49 @@
 (function() {
   'use strict';
-
+  
   class ChatWidget {
     constructor(options = {}) {
       this.options = {
-        serverUrl: options.serverUrl || 'ws://localhost:3000/',
+        serverUrl: options.serverUrl || 'ws://54.255.136.171:3000/',
         position: options.position || 'bottom-right',
         primaryColor: options.primaryColor || '#007bff',
         title: options.title || 'Chat Support',
         ...options
       };
-
+      
       this.sessionId = this.generateSessionId();
       this.ws = null;
       this.isOpen = false;
       this.messages = [];
-      this.isConnectedToHuman = false;
-
+      
       this.init();
     }
-
+    
     generateSessionId() {
       return 'session_' + Math.random().toString(36).substr(2, 9);
     }
-
+    
     init() {
       this.createWidget();
       this.connectWebSocket();
     }
-
+    
     createWidget() {
       // Create widget container
       this.widget = document.createElement('div');
       this.widget.id = 'chat-widget';
       this.widget.innerHTML = this.getWidgetHTML();
       document.body.appendChild(this.widget);
-
+      
       // Add styles
       const style = document.createElement('style');
       style.textContent = this.getWidgetCSS();
       document.head.appendChild(style);
-
+      
       // Add event listeners
       this.addEventListeners();
     }
-
+    
     getWidgetHTML() {
       return `
         <div class="chat-widget-container ${this.options.position}">
@@ -53,17 +52,13 @@
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </div>
-
+          
           <div class="chat-window" id="chat-window" style="display: none;">
             <div class="chat-header">
               <span class="chat-title">${this.options.title}</span>
-              <div class="connection-status" id="connection-status">
-                <span class="status-text">AI Assistant</span>
-                <div class="status-indicator"></div>
-              </div>
               <button class="chat-close" id="chat-close">×</button>
             </div>
-
+            
             <div class="chat-messages" id="chat-messages">
               <div class="message bot-message">
                 <div class="message-content">
@@ -71,31 +66,17 @@
                 </div>
               </div>
             </div>
-
+            
             <div class="chat-input-container">
               <input type="text" id="chat-input" placeholder="Type your message..." />
-              <input type="file" id="file-input" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt">
               <button id="chat-send">Send</button>
-              <button id="file-upload" title="Upload file">📎</button>
               <button id="request-human" title="Request human support">👤</button>
-            </div>
-
-            <div id="satisfaction-survey" style="display: none;">
-              <div class="survey-content">
-                <h4>How was your experience?</h4>
-                <div class="survey-options" id="survey-options"></div>
-                <textarea id="survey-feedback" placeholder="Additional feedback (optional)"></textarea>
-                <div class="survey-buttons">
-                  <button id="survey-submit">Submit</button>
-                  <button id="survey-skip">Skip</button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       `;
     }
-
+    
     getWidgetCSS() {
       return `
         .chat-widget-container {
@@ -103,17 +84,17 @@
           z-index: 10000;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-
+        
         .chat-widget-container.bottom-right {
           bottom: 20px;
           right: 20px;
         }
-
+        
         .chat-widget-container.bottom-left {
           bottom: 20px;
           left: 20px;
         }
-
+        
         .chat-toggle {
           width: 60px;
           height: 60px;
@@ -127,11 +108,11 @@
           transition: all 0.3s ease;
           color: white;
         }
-
+        
         .chat-toggle:hover {
           transform: scale(1.1);
         }
-
+        
         .chat-window {
           width: 350px;
           height: 500px;
@@ -144,7 +125,7 @@
           bottom: 70px;
           right: 0;
         }
-
+        
         .chat-header {
           background: ${this.options.primaryColor};
           color: white;
@@ -154,44 +135,11 @@
           justify-content: space-between;
           align-items: center;
         }
-
+        
         .chat-title {
           font-weight: 600;
         }
-
-        .connection-status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .status-text {
-          font-size: 12px;
-          opacity: 0.9;
-        }
-
-        .status-indicator {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #4CAF50;
-        }
-
-        .status-indicator.waiting {
-          background: #FFC107;
-          animation: pulse 1.5s infinite;
-        }
-
-        .status-indicator.human {
-          background: #FF5722;
-        }
-
-        @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.5; }
-          100% { opacity: 1; }
-        }
-
+        
         .chat-close {
           background: none;
           border: none;
@@ -205,7 +153,7 @@
           align-items: center;
           justify-content: center;
         }
-
+        
         .chat-messages {
           flex: 1;
           overflow-y: auto;
@@ -214,50 +162,43 @@
           flex-direction: column;
           gap: 12px;
         }
-
+        
         .message {
           display: flex;
           margin-bottom: 8px;
         }
-
+        
         .message-content {
           max-width: 80%;
           padding: 12px 16px;
           border-radius: 18px;
           word-wrap: break-word;
         }
-
+        
         .bot-message .message-content,
         .agent-message .message-content {
           background: #f1f1f1;
           color: #333;
           margin-right: auto;
         }
-
-        .system-message .message-content {
-          background: #e3f2fd;
-          color: #1976d2;
-          margin-right: auto;
-          font-style: italic;
-        }
-
+        
         .user-message {
           justify-content: flex-end;
         }
-
+        
         .user-message .message-content {
           background: ${this.options.primaryColor};
           color: white;
           margin-left: auto;
         }
-
+        
         .chat-input-container {
           padding: 16px;
           border-top: 1px solid #eee;
           display: flex;
           gap: 8px;
         }
-
+        
         #chat-input {
           flex: 1;
           padding: 12px;
@@ -266,7 +207,7 @@
           outline: none;
           font-size: 14px;
         }
-
+        
         #chat-send, #request-human {
           padding: 12px 16px;
           background: ${this.options.primaryColor};
@@ -275,110 +216,12 @@
           border-radius: 20px;
           cursor: pointer;
           font-size: 14px;
-          transition: all 0.3s ease;
         }
-
+        
         #request-human {
           padding: 12px;
         }
-
-        #file-upload {
-          background: #6c757d;
-          color: white;
-          padding: 12px;
-          border: none;
-          border-radius: 20px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-
-        #request-human:hover, #file-upload:hover {
-          transform: scale(1.05);
-        }
-
-        #request-human:disabled, #file-upload:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        #satisfaction-survey {
-          position: absolute;
-          bottom: 60px;
-          left: 0;
-          right: 0;
-          background: white;
-          border-top: 1px solid #eee;
-          padding: 20px;
-          box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-
-        .survey-content h4 {
-          margin: 0 0 15px 0;
-          color: #333;
-        }
-
-        .survey-options {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 15px;
-          flex-wrap: wrap;
-        }
-
-        .survey-option {
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 20px;
-          cursor: pointer;
-          background: white;
-          transition: all 0.2s;
-          font-size: 14px;
-        }
-
-        .survey-option:hover {
-          background: #f0f0f0;
-        }
-
-        .survey-option.selected {
-          background: ${this.options.primaryColor};
-          color: white;
-          border-color: ${this.options.primaryColor};
-        }
-
-        #survey-feedback {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          resize: vertical;
-          min-height: 60px;
-          margin-bottom: 15px;
-          font-family: inherit;
-          box-sizing: border-box;
-        }
-
-        .survey-buttons {
-          display: flex;
-          gap: 10px;
-        }
-
-        .survey-buttons button {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-
-        #survey-submit {
-          background: ${this.options.primaryColor};
-          color: white;
-        }
-
-        #survey-skip {
-          background: #6c757d;
-          color: white;
-        }
-
+        
         .typing-indicator {
           display: flex;
           align-items: center;
@@ -389,7 +232,7 @@
           margin-right: auto;
           max-width: 80px;
         }
-
+        
         .typing-dot {
           width: 8px;
           height: 8px;
@@ -397,15 +240,15 @@
           border-radius: 50%;
           animation: typing 1.4s infinite ease-in-out;
         }
-
+        
         .typing-dot:nth-child(1) { animation-delay: -0.32s; }
         .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-
+        
         @keyframes typing {
           0%, 80%, 100% { transform: scale(0); }
           40% { transform: scale(1); }
         }
-
+        
         @media (max-width: 480px) {
           .chat-window {
             width: calc(100vw - 40px);
@@ -416,175 +259,102 @@
         }
       `;
     }
-
+    
     addEventListeners() {
       const toggle = document.getElementById('chat-toggle');
       const close = document.getElementById('chat-close');
       const input = document.getElementById('chat-input');
       const send = document.getElementById('chat-send');
       const requestHuman = document.getElementById('request-human');
-      const fileUpload = document.getElementById('file-upload');
-      const fileInput = document.getElementById('file-input');
-
+      
       toggle.addEventListener('click', () => this.toggleChat());
       close.addEventListener('click', () => this.closeChat());
       send.addEventListener('click', () => this.sendMessage());
       requestHuman.addEventListener('click', () => this.requestHuman());
-      fileUpload.addEventListener('click', () => this.handleFileUpload());
-
+      
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           this.sendMessage();
         }
       });
-
-      // File input handling
-      fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          this.uploadFile(file);
-        }
-      });
     }
-
+    
     connectWebSocket() {
-      const wsUrl = this.options.serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
-      console.log('Connecting to:', wsUrl);
-
+      const wsUrl = this.options.serverUrl.replace('http', 'ws');
       this.ws = new WebSocket(wsUrl);
-
+      
       this.ws.onopen = () => {
         console.log('WebSocket connected');
-        this.updateConnectionStatus('Connected', 'AI Assistant');
       };
-
+      
       this.ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log('Received message:', data);
         this.handleServerMessage(data);
       };
-
+      
       this.ws.onclose = () => {
         console.log('WebSocket disconnected');
-        this.updateConnectionStatus('Connecting...', 'Reconnecting');
         // Attempt to reconnect after 3 seconds
         setTimeout(() => this.connectWebSocket(), 3000);
       };
-
+      
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        this.updateConnectionStatus('Connection Error', 'Offline');
       };
     }
-
+    
     handleServerMessage(data) {
       const { type, message } = data;
-
+      
       switch (type) {
         case 'ai_response':
           this.hideTypingIndicator();
           this.addMessage(message, 'bot');
           break;
-
+          
         case 'agent_message':
           this.addMessage(message, 'agent');
           break;
-
+          
         case 'human_joined':
-          this.isConnectedToHuman = true;
-          this.updateConnectionStatus('Human Agent', 'Connected to agent');
           this.addMessage(message, 'system');
-          // Disable human request button when connected
-          document.getElementById('request-human').disabled = true;
           break;
-
+          
         case 'waiting_for_human':
-          this.updateConnectionStatus('In Queue', 'Waiting for agent', true);
-          this.addMessage(message, 'system');
-          // Disable human request button while waiting
-          document.getElementById('request-human').disabled = true;
-          break;
-
-        case 'agent_left':
-          this.isConnectedToHuman = false;
-          this.updateConnectionStatus('AI Assistant', 'Back to AI');
-          this.addMessage(message, 'system');
-          // Re-enable human request button
-          document.getElementById('request-human').disabled = false;
-          break;
-
-        case 'agent_disconnected_temp':
-          this.updateConnectionStatus('Agent Reconnecting', 'Temporary disconnection', true);
           this.addMessage(message, 'system');
           break;
-
-        case 'agent_reconnected':
-          this.updateConnectionStatus('Human Agent', 'Agent reconnected');
-          this.addMessage(message, 'system');
-          break;
-
-        case 'agent_disconnected':
-          this.isConnectedToHuman = false;
-          this.updateConnectionStatus('AI Assistant', 'Agent disconnected');
-          this.addMessage(message, 'system');
-          document.getElementById('request-human').disabled = false;
-          break;
-
-        case 'satisfaction_survey':
-          this.showSatisfactionSurvey(data);
-          break;
-
-        case 'no_agents_available':
-          this.addMessage(message, 'system');
-          document.getElementById('request-human').disabled = false;
-          break;
-
+          
         case 'error':
           this.hideTypingIndicator();
-          this.addMessage(message, 'system');
+          this.addMessage(message, 'error');
           break;
-
-        default:
-          console.log('Unknown message type:', type);
       }
     }
-
-    updateConnectionStatus(statusText, tooltip, isWaiting = false) {
-      const statusElement = document.getElementById('connection-status');
-      const indicatorClass = isWaiting ? 'waiting' : this.isConnectedToHuman ? 'human' : '';
-      
-      statusElement.innerHTML = `
-        <span class="status-text" title="${tooltip}">${statusText}</span>
-        <div class="status-indicator ${indicatorClass}"></div>
-      `;
-    }
-
+    
     toggleChat() {
       const window = document.getElementById('chat-window');
       this.isOpen = !this.isOpen;
       window.style.display = this.isOpen ? 'flex' : 'none';
     }
-
+    
     closeChat() {
       const window = document.getElementById('chat-window');
       this.isOpen = false;
       window.style.display = 'none';
     }
-
+    
     sendMessage() {
       const input = document.getElementById('chat-input');
       const message = input.value.trim();
-
+      
       if (!message) return;
-
+      
       this.addMessage(message, 'user');
       input.value = '';
-
-      // Show typing indicator only if not connected to human
-      if (!this.isConnectedToHuman) {
-        this.showTypingIndicator();
-      }
-
+      
+      // Show typing indicator
+      this.showTypingIndicator();
+      
       // Send to server
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
@@ -592,48 +362,37 @@
           sessionId: this.sessionId,
           message: message
         }));
-      } else {
-        this.hideTypingIndicator();
-        this.addMessage('Connection lost. Trying to reconnect...', 'system');
       }
     }
-
+    
     requestHuman() {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           type: 'request_human',
           sessionId: this.sessionId
         }));
-
-        // Provide immediate feedback
-        this.addMessage('Requesting human agent...', 'system');
-      } else {
-        this.addMessage('Unable to connect to server. Please try again.', 'system');
       }
     }
-
+    
     addMessage(message, sender) {
       const messagesContainer = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${sender}-message`;
-
+      
       messageDiv.innerHTML = `
         <div class="message-content">${message}</div>
       `;
-
+      
       messagesContainer.appendChild(messageDiv);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
-
+    
     showTypingIndicator() {
-      // Remove existing indicator first
-      this.hideTypingIndicator();
-
       const messagesContainer = document.getElementById('chat-messages');
       const typingDiv = document.createElement('div');
       typingDiv.className = 'message bot-message';
       typingDiv.id = 'typing-indicator';
-
+      
       typingDiv.innerHTML = `
         <div class="typing-indicator">
           <div class="typing-dot"></div>
@@ -641,108 +400,22 @@
           <div class="typing-dot"></div>
         </div>
       `;
-
+      
       messagesContainer.appendChild(typingDiv);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
-
+    
     hideTypingIndicator() {
-      const typingIndicator = document.getElementById('typing-indicator');
-      if (typingIndicator) {
-        typingIndicator.remove();
+      const indicator = document.getElementById('typing-indicator');
+      if (indicator) {
+        indicator.remove();
       }
     }
-
-    handleFileUpload() {
-      document.getElementById('file-input').click();
-    }
-
-    uploadFile(file) {
-      // Simple file upload simulation - in production, you'd upload to a server
-      const fileName = file.name;
-      const fileSize = (file.size / 1024).toFixed(1) + ' KB';
-
-      this.addMessage(`📎 Uploading ${fileName} (${fileSize})...`, 'user');
-
-      // Simulate upload
-      setTimeout(() => {
-        this.addMessage(`✅ File uploaded: ${fileName}`, 'system');
-
-        // Send file info to server
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({
-            type: 'file_upload',
-            sessionId: this.sessionId,
-            fileName: fileName,
-            fileType: file.type,
-            fileData: 'base64_data_here' // In production, upload to cloud storage
-          }));
-        }
-      }, 1500);
-    }
-
-    showSatisfactionSurvey(data) {
-      const surveyDiv = document.getElementById('satisfaction-survey');
-      const optionsDiv = document.getElementById('survey-options');
-
-      // Clear previous options
-      optionsDiv.innerHTML = '';
-
-      // Add survey options
-      data.options.forEach(option => {
-        const optionButton = document.createElement('button');
-        optionButton.className = 'survey-option';
-        optionButton.textContent = option.label;
-        optionButton.dataset.value = option.value;
-
-        optionButton.addEventListener('click', () => {
-          // Remove previous selection
-          optionsDiv.querySelectorAll('.survey-option').forEach(btn => {
-            btn.classList.remove('selected');
-          });
-          // Select current option
-          optionButton.classList.add('selected');
-        });
-
-        optionsDiv.appendChild(optionButton);
-      });
-
-      // Show survey
-      surveyDiv.style.display = 'block';
-
-      // Setup survey buttons
-      document.getElementById('survey-submit').onclick = () => {
-        const selectedOption = optionsDiv.querySelector('.survey-option.selected');
-        const feedback = document.getElementById('survey-feedback').value;
-
-        if (selectedOption) {
-          const rating = parseInt(selectedOption.dataset.value);
-
-          // Send satisfaction response
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-              type: 'satisfaction_response',
-              sessionId: data.sessionId,
-              rating: rating,
-              feedback: feedback
-            }));
-          }
-
-          this.addMessage('Thank you for your feedback!', 'system');
-        }
-
-        surveyDiv.style.display = 'none';
-      };
-
-      document.getElementById('survey-skip').onclick = () => {
-        surveyDiv.style.display = 'none';
-      };
-    }
   }
-
+  
   // Auto-initialize if options are provided
   window.ChatWidget = ChatWidget;
-
+  
   // Auto-start if config is available
   if (window.chatWidgetConfig) {
     new ChatWidget(window.chatWidgetConfig);

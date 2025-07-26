@@ -59,7 +59,6 @@
               <span class="chat-title">${this.options.title}</span>
               <div class="connection-status" id="connection-status">
                 <span class="status-text">AI Assistant</span>
-                <div class="status-indicator"></div>
               </div>
               <button class="chat-close" id="chat-close">×</button>
             </div>
@@ -74,22 +73,8 @@
 
             <div class="chat-input-container">
               <input type="text" id="chat-input" placeholder="Type your message..." />
-              <input type="file" id="file-input" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt">
               <button id="chat-send">Send</button>
-              <button id="file-upload" title="Upload file">📎</button>
               <button id="request-human" title="Request human support">👤</button>
-            </div>
-
-            <div id="satisfaction-survey" style="display: none;">
-              <div class="survey-content">
-                <h4>How was your experience?</h4>
-                <div class="survey-options" id="survey-options"></div>
-                <textarea id="survey-feedback" placeholder="Additional feedback (optional)"></textarea>
-                <div class="survey-buttons">
-                  <button id="survey-submit">Submit</button>
-                  <button id="survey-skip">Skip</button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -282,101 +267,13 @@
           padding: 12px;
         }
 
-        #file-upload {
-          background: #6c757d;
-          color: white;
-          padding: 12px;
-          border: none;
-          border-radius: 20px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-
-        #request-human:hover, #file-upload:hover {
+        #request-human:hover {
           transform: scale(1.05);
         }
 
-        #request-human:disabled, #file-upload:disabled {
+        #request-human:disabled {
           opacity: 0.5;
           cursor: not-allowed;
-        }
-
-        #satisfaction-survey {
-          position: absolute;
-          bottom: 60px;
-          left: 0;
-          right: 0;
-          background: white;
-          border-top: 1px solid #eee;
-          padding: 20px;
-          box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-
-        .survey-content h4 {
-          margin: 0 0 15px 0;
-          color: #333;
-        }
-
-        .survey-options {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 15px;
-          flex-wrap: wrap;
-        }
-
-        .survey-option {
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 20px;
-          cursor: pointer;
-          background: white;
-          transition: all 0.2s;
-          font-size: 14px;
-        }
-
-        .survey-option:hover {
-          background: #f0f0f0;
-        }
-
-        .survey-option.selected {
-          background: ${this.options.primaryColor};
-          color: white;
-          border-color: ${this.options.primaryColor};
-        }
-
-        #survey-feedback {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          resize: vertical;
-          min-height: 60px;
-          margin-bottom: 15px;
-          font-family: inherit;
-          box-sizing: border-box;
-        }
-
-        .survey-buttons {
-          display: flex;
-          gap: 10px;
-        }
-
-        .survey-buttons button {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-
-        #survey-submit {
-          background: ${this.options.primaryColor};
-          color: white;
-        }
-
-        #survey-skip {
-          background: #6c757d;
-          color: white;
         }
 
         .typing-indicator {
@@ -423,26 +320,15 @@
       const input = document.getElementById('chat-input');
       const send = document.getElementById('chat-send');
       const requestHuman = document.getElementById('request-human');
-      const fileUpload = document.getElementById('file-upload');
-      const fileInput = document.getElementById('file-input');
 
       toggle.addEventListener('click', () => this.toggleChat());
       close.addEventListener('click', () => this.closeChat());
       send.addEventListener('click', () => this.sendMessage());
       requestHuman.addEventListener('click', () => this.requestHuman());
-      fileUpload.addEventListener('click', () => this.handleFileUpload());
 
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           this.sendMessage();
-        }
-      });
-
-      // File input handling
-      fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          this.uploadFile(file);
         }
       });
     }
@@ -450,7 +336,7 @@
     connectWebSocket() {
       const wsUrl = this.options.serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
       console.log('Connecting to:', wsUrl);
-
+      
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
@@ -513,30 +399,8 @@
           document.getElementById('request-human').disabled = false;
           break;
 
-        case 'agent_disconnected_temp':
-          this.updateConnectionStatus('Agent Reconnecting', 'Temporary disconnection', true);
-          this.addMessage(message, 'system');
-          break;
-
-        case 'agent_reconnected':
-          this.updateConnectionStatus('Human Agent', 'Agent reconnected');
-          this.addMessage(message, 'system');
-          break;
-
-        case 'agent_disconnected':
-          this.isConnectedToHuman = false;
-          this.updateConnectionStatus('AI Assistant', 'Agent disconnected');
-          this.addMessage(message, 'system');
-          document.getElementById('request-human').disabled = false;
-          break;
-
-        case 'satisfaction_survey':
-          this.showSatisfactionSurvey(data);
-          break;
-
         case 'no_agents_available':
           this.addMessage(message, 'system');
-          document.getElementById('request-human').disabled = false;
           break;
 
         case 'error':
@@ -551,11 +415,9 @@
 
     updateConnectionStatus(statusText, tooltip, isWaiting = false) {
       const statusElement = document.getElementById('connection-status');
-      const indicatorClass = isWaiting ? 'waiting' : this.isConnectedToHuman ? 'human' : '';
-      
       statusElement.innerHTML = `
         <span class="status-text" title="${tooltip}">${statusText}</span>
-        <div class="status-indicator ${indicatorClass}"></div>
+        <div class="status-indicator ${isWaiting ? 'waiting' : this.isConnectedToHuman ? 'human' : ''}"></div>
       `;
     }
 
@@ -604,7 +466,7 @@
           type: 'request_human',
           sessionId: this.sessionId
         }));
-
+        
         // Provide immediate feedback
         this.addMessage('Requesting human agent...', 'system');
       } else {
@@ -628,7 +490,7 @@
     showTypingIndicator() {
       // Remove existing indicator first
       this.hideTypingIndicator();
-
+      
       const messagesContainer = document.getElementById('chat-messages');
       const typingDiv = document.createElement('div');
       typingDiv.className = 'message bot-message';
@@ -647,96 +509,10 @@
     }
 
     hideTypingIndicator() {
-      const typingIndicator = document.getElementById('typing-indicator');
-      if (typingIndicator) {
-        typingIndicator.remove();
+      const indicator = document.getElementById('typing-indicator');
+      if (indicator) {
+        indicator.remove();
       }
-    }
-
-    handleFileUpload() {
-      document.getElementById('file-input').click();
-    }
-
-    uploadFile(file) {
-      // Simple file upload simulation - in production, you'd upload to a server
-      const fileName = file.name;
-      const fileSize = (file.size / 1024).toFixed(1) + ' KB';
-
-      this.addMessage(`📎 Uploading ${fileName} (${fileSize})...`, 'user');
-
-      // Simulate upload
-      setTimeout(() => {
-        this.addMessage(`✅ File uploaded: ${fileName}`, 'system');
-
-        // Send file info to server
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({
-            type: 'file_upload',
-            sessionId: this.sessionId,
-            fileName: fileName,
-            fileType: file.type,
-            fileData: 'base64_data_here' // In production, upload to cloud storage
-          }));
-        }
-      }, 1500);
-    }
-
-    showSatisfactionSurvey(data) {
-      const surveyDiv = document.getElementById('satisfaction-survey');
-      const optionsDiv = document.getElementById('survey-options');
-
-      // Clear previous options
-      optionsDiv.innerHTML = '';
-
-      // Add survey options
-      data.options.forEach(option => {
-        const optionButton = document.createElement('button');
-        optionButton.className = 'survey-option';
-        optionButton.textContent = option.label;
-        optionButton.dataset.value = option.value;
-
-        optionButton.addEventListener('click', () => {
-          // Remove previous selection
-          optionsDiv.querySelectorAll('.survey-option').forEach(btn => {
-            btn.classList.remove('selected');
-          });
-          // Select current option
-          optionButton.classList.add('selected');
-        });
-
-        optionsDiv.appendChild(optionButton);
-      });
-
-      // Show survey
-      surveyDiv.style.display = 'block';
-
-      // Setup survey buttons
-      document.getElementById('survey-submit').onclick = () => {
-        const selectedOption = optionsDiv.querySelector('.survey-option.selected');
-        const feedback = document.getElementById('survey-feedback').value;
-
-        if (selectedOption) {
-          const rating = parseInt(selectedOption.dataset.value);
-
-          // Send satisfaction response
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-              type: 'satisfaction_response',
-              sessionId: data.sessionId,
-              rating: rating,
-              feedback: feedback
-            }));
-          }
-
-          this.addMessage('Thank you for your feedback!', 'system');
-        }
-
-        surveyDiv.style.display = 'none';
-      };
-
-      document.getElementById('survey-skip').onclick = () => {
-        surveyDiv.style.display = 'none';
-      };
     }
   }
 
